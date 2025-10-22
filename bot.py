@@ -15,10 +15,12 @@ if not TOKEN:
 
 try:
     # Convertimos el ID a un entero
-    VOICE_CHANNEL_ID = int(os.environ.get("VOICE_CHANNEL_ID", "TU_ID_DE_CANAL_POR_DEFECTO_SI_FALLA"))
-except ValueError:
-    print("--- ERROR: VOICE_CHANNEL_ID no es un número válido ---")
-    print("Asegúrate de haberla configurado en el dashboard de Render.")
+    VOICE_CHANNEL_ID = int(os.environ.get("VOICE_CHANNEL_ID", "0"))
+    if VOICE_CHANNEL_ID == 0:
+        raise ValueError("VOICE_CHANNEL_ID no está configurado o es 0")
+except ValueError as e:
+    print(f"--- ERROR: {e} ---")
+    print("Asegúrate de haber configurado VOICE_CHANNEL_ID en Render con un ID numérico válido.")
     exit()
 
 
@@ -42,37 +44,37 @@ intents.voice_states = True
 client = discord.Client(intents=intents)
 
 
-# --- CORRECCIÓN 1: Cargar FFmpeg y el audio UNA SOLA VEZ al inicio ---
-print("Cargando FFmpeg...")
+# --- CORRECCIÓN 1: Cargar la RUTA de FFmpeg UNA SOLA VEZ ---
+print("Obteniendo la ruta de FFmpeg...")
 try:
-    # 1. Obtener la ruta de ffmpeg
     ffmpeg_path = imageio_ffmpeg.get_ffmpeg_exe()
-    
-    # 2. Crear la fuente de audio silencioso UNA SOLA VEZ
-    # Asegúrate de que 'silence.mp3' esté en tu repositorio de GitHub
-    silent_audio_source = discord.FFmpegPCMAudio('silence.mp3', executable=ffmpeg_path)
-    print("Fuente de audio silencioso cargada.")
-
+    print("Ruta de FFmpeg encontrada.")
 except Exception as e:
-    print(f"Error CRÍTICO al cargar FFmpeg o silence.mp3: {e}")
-    print("Asegúrate de que 'silence.mp3' está en el repositorio.")
-    exit() # Salir si no podemos cargar el audio
+    print(f"Error CRÍTICO al cargar FFmpeg: {e}")
+    exit() # Salir si no podemos encontrar ffmpeg
 
 
-# --- CORRECCIÓN 2: 'play_silence' ahora solo REPRODUCE, no recarga ---
+# --- CORRECCIÓN 2: 'play_silence' debe RE-CREAR el stream de audio ---
 def play_silence(vc):
-    """Reproduce la fuente de audio silencioso (ya cargada) en bucle."""
+    """Crea un NUEVO stream de audio silencioso y lo reproduce."""
     try:
         if not vc.is_connected():
             print("VC no conectado, no se puede reproducir silencio.")
             return
 
-        vc.play(silent_audio_source, after=lambda e: play_silence(vc) if e is None else print(f"Error en 'after' de play: {e}"))
+        # ESTA ES LA LÍNEA CLAVE:
+        # Creamos un *nuevo* objeto FFmpegPCMAudio CADA VEZ que se llama la función.
+        # Los streams de audio no se pueden re-usar.
+        audio_source = discord.FFmpegPCMAudio('silence.mp3', executable=ffmpeg_path)
+        
+        # El 'after' ahora llama a esta misma función, creando un bucle infinito
+        vc.play(audio_source, after=lambda e: play_silence(vc) if e is None else print(f"Error en 'after' de play: {e}"))
     
     except Exception as e:
         print(f"Error al reproducir silencio: {e}")
 
 # Tarea en bucle que revisa la conexión cada 15 segundos
+# Esto es un "vigilante" por si el bucle de 'play_silence' falla
 @tasks.loop(seconds=15)
 async def check_voice_connection():
     await client.wait_until_ready()  # Espera a que el bot esté conectado a Discord
@@ -90,17 +92,17 @@ async def check_voice_connection():
             # No está conectado, así que nos conectamos.
             print(f"Conectando a {channel.name}...")
             vc = await channel.connect()
-            play_silence(vc) # Empezamos a reproducir silencio
+            play_silence(vc) # Empezamos el bucle de silencio
         
         elif not voice_client.is_connected():
             # Estaba conectado pero se cayó, reconectamos.
             print(f"Reconectando a {channel.name}...")
             vc = await voice_client.connect() # connect() maneja la reconexión
-            play_silence(vc) # Reiniciamos el silencio
+            play_silence(vc) # Reiniciamos el bucle de silencio
 
         elif not voice_client.is_playing():
-            # Está conectado pero no reproduciendo (raro, pero por si acaso)
-            print("Audio silencioso no estaba sonando. Reiniciando...")
+            # Está conectado PERO no está reproduciendo (el bucle se rompió)
+            print("Audio silencioso no estaba sonando. Reiniciando bucle...")
             play_silence(voice_client)
 
     except Exception as e:
@@ -114,10 +116,16 @@ async def on_ready():
     check_voice_connection.start() # Inicia la tarea en bucle
 
 
-# --- CORRECCIÓN 3: Iniciar el servidor web y el bot JUNTOS al final ---
+# --- Inicio del Servidor y el Bot ---
 if __name__ == "__main__":
     
-    # Inicia el servidor web en un hilo (UNA SOLA VEZ)
+    # Asegúrate de que 'silence.mp3' existe antes de empezar
+    if not os.path.exists('silence.mp3'):
+        print("--- ERROR CRÍTICO: No se encuentra el archivo 'silence.mp3' ---")
+        print("Asegúrate de que 'silence.mp3' esté en tu repositorio de GitHub.")
+        exit()
+        
+    # Inicia el servidor web en un hilo
     print("Iniciando servidor web...")
     t_web = Thread(target=run_web_server)
     t_web.daemon = True # Permite que el programa se cierre si solo queda este hilo
@@ -132,3 +140,4 @@ if __name__ == "__main__":
         print("Revisa la variable de entorno DISCORD_TOKEN en Render.")
     except Exception as e:
         print(f"Error desconocido al ejecutar el bot: {e}")
+
