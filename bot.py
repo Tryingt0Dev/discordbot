@@ -3,12 +3,18 @@ from discord.ext import tasks
 import os
 from flask import Flask
 from threading import Thread
+import imageio_ffmpeg
 
 
 # --- Configuración ---
 # Reemplaza con tus propios IDs
-TOKEN = "551e73b1220b8db7e6aa04a6a79c7f79e39e31350dc5627bd9940c7d1e523c2c"
-VOICE_CHANNEL_ID = 1428203094138814584 # ID del canal de voz al que quieres que se una
+TOKEN = os.environ.get("DISCORD_TOKEN")
+
+if not TOKEN:
+    print("--- ERROR: No se encontró la variable de entorno DISCORD_TOKEN ---")
+    print("Asegúrate de haberla configurado en el dashboard de Render.")
+    exit()
+VOICE_CHANNEL_ID = 1428203094138814584 
 app = Flask('')
 
 @app.route('/')
@@ -17,7 +23,7 @@ def home():
     return "¡El bot está vivo!"
 
 def run_web_server():
-  app.run(host='0.0.0.0', port=8080)
+  app.run(host='0.0.0.0', port=8080, use_reloader=False)
 
 # Inicia el servidor web en un hilo separado
 Thread(target=run_web_server).start()
@@ -35,10 +41,13 @@ silent_audio_source = discord.FFmpegPCMAudio('silence.mp3')
 
 # Función para reproducir el silencio. Se llama a sí misma cuando termina.
 def play_silence(vc):
+    ffmpeg_path = imageio_ffmpeg.get_ffmpeg_exe()
+
     try:
-        vc.play(silent_audio_source, after=lambda e: play_silence(vc) if vc.is_connected() else None)
-    except Exception as e:
-        print(f"Error al reproducir silencio: {e}")
+        silent_audio_source = discord.FFmpegPCMAudio('silence.mp3', executable=ffmpeg_path) 
+    except Exception as e:  
+        print(f"Error al cargar el archivo de audio silencioso: {e}")
+        return
 
 # Tarea en bucle que revisa la conexión cada 15 segundos
 @tasks.loop(seconds=15)
