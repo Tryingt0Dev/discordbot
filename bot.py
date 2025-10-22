@@ -1,4 +1,21 @@
-# ... (el código de verificación de VOICE_CHANNEL_ID no cambia) ...
+import discord
+from discord.ext import tasks
+import os
+from flask import Flask
+from markupsafe import Markup # Importamos Markup
+from threading import Thread
+import imageio_ffmpeg  # Asegúrate de que esto esté en requirements.txt
+
+# --- Configuración del Bot ---
+TOKEN = os.environ.get("DISCORD_TOKEN")
+
+if not TOKEN:
+    print("--- ERROR: No se encontró la variable de entorno DISCORD_TOKEN ---")
+    print("Asegúrate de haberla configurado en el dashboard de Render.")
+    exit()
+
+try:
+    # Convertimos el ID a un entero
     VOICE_CHANNEL_ID = int(os.environ.get("VOICE_CHANNEL_ID", "0"))
     if VOICE_CHANNEL_ID == 0:
         raise ValueError("VOICE_CHANNEL_ID no está configurado o es 0")
@@ -13,7 +30,7 @@ app = Flask('')
 
 @app.route('/')
 def home():
-    # --- ¡TU CÓDIGO HTML CON EL VIDEO DE YOUTUBE! ---
+    # --- TU CÓDIGO HTML CON EL VIDEO DE YOUTUBE IMPLEMENTADO ---
     return Markup("""
 <!DOCTYPE html>
 <html lang="es">
@@ -70,13 +87,13 @@ def home():
             color: #fff;
         }
         
-        /* --- CAMBIO DE CSS PARA EL VIDEO --- */
+        /* CSS para el video de YouTube responsivo */
         .video-container {
             margin: 2rem 0 1rem 0;
             position: relative;
             overflow: hidden;
             width: 100%;
-            padding-top: 56.25%; /* Proporción 16:9 (9 / 16 = 0.5625) */
+            padding-top: 56.25%; /* Proporción 16:9 */
             border-radius: 12px;
             box-shadow: 0 2px 16px rgba(0,0,0,0.3);
         }
@@ -90,7 +107,6 @@ def home():
             height: 100%;
             border: none;
         }
-        /* --- FIN DEL CAMBIO DE CSS --- */
         
         h1 {
             font-family: 'Montserrat', sans-serif;
@@ -124,7 +140,7 @@ def home():
             <h1>EDUARDOYT666</h1>
             <div class="subtitle mb-3">¡Bienvenido a la morada digital de <b>EDUARDOYT666</b>! Disfruta el video y conoce su contenido.</div>
             
-            <!-- CAMBIO: Video de YouTube Embebido -->
+            <!-- Video de YouTube Embebido con tu ID -->
             <div class="video-container">
                 <iframe 
                     src="https://www.youtube.com/embed/c7ZGtZCFQGo?autoplay=1&mute=1&loop=1&playsinline=1&playlist=c7ZGtZCFQGo" 
@@ -146,23 +162,20 @@ def home():
 """)
 
 def run_web_server():
-# ... (el resto del código de run_web_server no cambia) ...
   # Añadimos use_reloader=False para evitar que se inicie dos veces
   app.run(host='0.0.0.0', port=8080, use_reloader=False)
 
 
 # --- Configuración del Cliente de Discord ---
 intents = discord.Intents.default()
-# ... (el resto del código de intents no cambia) ...
 intents.guilds = True
 intents.voice_states = True 
 
 client = discord.Client(intents=intents)
 
 
-# --- Lógica del Bot (Sin cambios) ---
+# --- Lógica del Bot ---
 print("Obteniendo la ruta de FFmpeg...")
-# ... (el resto de la lógica del bot no cambia) ...
 try:
     ffmpeg_path = imageio_ffmpeg.get_ffmpeg_exe()
     print("Ruta de FFmpeg encontrada.")
@@ -177,6 +190,7 @@ def play_silence(vc):
             print("VC no conectado, no se puede reproducir silencio.")
             return
 
+        # Re-creamos el stream CADA VEZ para el bucle
         audio_source = discord.FFmpegPCMAudio('silence.mp3', executable=ffmpeg_path)
         vc.play(audio_source, after=lambda e: play_silence(vc) if e is None else print(f"Error en 'after' de play: {e}"))
     
@@ -224,14 +238,13 @@ async def on_ready():
 if __name__ == "__main__":
     
     if not os.path.exists('silence.mp3'):
-# ... (el resto del código de inicio no cambia) ...
         print("--- ERROR CRÍTICO: No se encuentra el archivo 'silence.mp3' ---")
         print("Asegúrate de que 'silence.mp3' esté en tu repositorio de GitHub.")
         exit()
         
     print("Iniciando servidor web...")
     t_web = Thread(target=run_web_server)
-    t_web.daemon = True
+    t_web.daemon = True # Permite que el hilo se cierre si el script principal se detiene
     t_web.start()
     
     print("Iniciando el bot de Discord...")
@@ -242,5 +255,4 @@ if __name__ == "__main__":
         print("Revisa la variable de entorno DISCORD_TOKEN en Render.")
     except Exception as e:
         print(f"Error desconocido al ejecutar el bot: {e}")
-
 
