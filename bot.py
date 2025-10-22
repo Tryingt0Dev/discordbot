@@ -3,51 +3,74 @@ from discord.ext import tasks
 import os
 from flask import Flask
 from threading import Thread
-import imageio_ffmpeg
+import imageio_ffmpeg  # Asegúrate de que esto esté en requirements.txt
 
-
-# --- Configuración ---
-# Reemplaza con tus propios IDs
+# --- Configuración del Bot ---
 TOKEN = os.environ.get("DISCORD_TOKEN")
 
 if not TOKEN:
     print("--- ERROR: No se encontró la variable de entorno DISCORD_TOKEN ---")
     print("Asegúrate de haberla configurado en el dashboard de Render.")
     exit()
-VOICE_CHANNEL_ID = 1428203094138814584 
+
+try:
+    # Convertimos el ID a un entero
+    VOICE_CHANNEL_ID = int(os.environ.get("VOICE_CHANNEL_ID", "TU_ID_DE_CANAL_POR_DEFECTO_SI_FALLA"))
+except ValueError:
+    print("--- ERROR: VOICE_CHANNEL_ID no es un número válido ---")
+    print("Asegúrate de haberla configurado en el dashboard de Render.")
+    exit()
+
+
+# --- Configuración del Servidor Web (para UptimeRobot) ---
 app = Flask('')
 
 @app.route('/')
-# ---------------------
 def home():
     return "¡El bot está vivo!"
 
 def run_web_server():
+  # Añadimos use_reloader=False para evitar que se inicie dos veces
   app.run(host='0.0.0.0', port=8080, use_reloader=False)
 
-# Inicia el servidor web en un hilo separado
-Thread(target=run_web_server).start()
-# Configura los "intents" (permisos) que tu bot necesita
+
+# --- Configuración del Cliente de Discord ---
 intents = discord.Intents.default()
 intents.guilds = True
 intents.voice_states = True 
 
 client = discord.Client(intents=intents)
 
-# Esta es la fuente de audio silencioso que se reproducirá en bucle
-# Asegúrate de tener 'silence.mp3' y 'ffmpeg.exe' en la misma carpeta
-# o que ffmpeg esté en tu PATH.
-silent_audio_source = discord.FFmpegPCMAudio('silence.mp3')
 
-# Función para reproducir el silencio. Se llama a sí misma cuando termina.
-def play_silence(vc):
+# --- CORRECCIÓN 1: Cargar FFmpeg y el audio UNA SOLA VEZ al inicio ---
+print("Cargando FFmpeg...")
+try:
+    # 1. Obtener la ruta de ffmpeg
     ffmpeg_path = imageio_ffmpeg.get_ffmpeg_exe()
+    
+    # 2. Crear la fuente de audio silencioso UNA SOLA VEZ
+    # Asegúrate de que 'silence.mp3' esté en tu repositorio de GitHub
+    silent_audio_source = discord.FFmpegPCMAudio('silence.mp3', executable=ffmpeg_path)
+    print("Fuente de audio silencioso cargada.")
 
+except Exception as e:
+    print(f"Error CRÍTICO al cargar FFmpeg o silence.mp3: {e}")
+    print("Asegúrate de que 'silence.mp3' está en el repositorio.")
+    exit() # Salir si no podemos cargar el audio
+
+
+# --- CORRECCIÓN 2: 'play_silence' ahora solo REPRODUCE, no recarga ---
+def play_silence(vc):
+    """Reproduce la fuente de audio silencioso (ya cargada) en bucle."""
     try:
-        silent_audio_source = discord.FFmpegPCMAudio('silence.mp3', executable=ffmpeg_path) 
-    except Exception as e:  
-        print(f"Error al cargar el archivo de audio silencioso: {e}")
-        return
+        if not vc.is_connected():
+            print("VC no conectado, no se puede reproducir silencio.")
+            return
+
+        vc.play(silent_audio_source, after=lambda e: play_silence(vc) if e is None else print(f"Error en 'after' de play: {e}"))
+    
+    except Exception as e:
+        print(f"Error al reproducir silencio: {e}")
 
 # Tarea en bucle que revisa la conexión cada 15 segundos
 @tasks.loop(seconds=15)
@@ -72,7 +95,7 @@ async def check_voice_connection():
         elif not voice_client.is_connected():
             # Estaba conectado pero se cayó, reconectamos.
             print(f"Reconectando a {channel.name}...")
-            vc = await voice_client.connect()
+            vc = await voice_client.connect() # connect() maneja la reconexión
             play_silence(vc) # Reiniciamos el silencio
 
         elif not voice_client.is_playing():
@@ -91,12 +114,21 @@ async def on_ready():
     check_voice_connection.start() # Inicia la tarea en bucle
 
 
-Thread(target=run_web_server).start()
-
-
-# Ejecuta el bot
-try:
-    client.run(TOKEN)
-except discord.errors.LoginFailure:
-    print("\n--- ERROR: TOKEN INVÁLIDO ---")
+# --- CORRECCIÓN 3: Iniciar el servidor web y el bot JUNTOS al final ---
+if __name__ == "__main__":
     
+    # Inicia el servidor web en un hilo (UNA SOLA VEZ)
+    print("Iniciando servidor web...")
+    t_web = Thread(target=run_web_server)
+    t_web.daemon = True # Permite que el programa se cierre si solo queda este hilo
+    t_web.start()
+    
+    # Ejecuta el bot
+    print("Iniciando el bot de Discord...")
+    try:
+        client.run(TOKEN)
+    except discord.errors.LoginFailure:
+        print("\n--- ERROR: TOKEN INVÁLIDO ---")
+        print("Revisa la variable de entorno DISCORD_TOKEN en Render.")
+    except Exception as e:
+        print(f"Error desconocido al ejecutar el bot: {e}")
