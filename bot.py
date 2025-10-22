@@ -2,6 +2,7 @@ import discord
 from discord.ext import tasks
 import os
 from flask import Flask
+from markupsafe import Markup
 from threading import Thread
 import imageio_ffmpeg  # Asegúrate de que esto esté en requirements.txt
 
@@ -29,7 +30,113 @@ app = Flask('')
 
 @app.route('/')
 def home():
-    return "¡El bot está vivo!"
+    # --- ¡AQUÍ ESTÁ TU CÓDIGO HTML! ---
+    # Lo envolvemos en Markup() y triple comillas (""")
+    return Markup("""
+    <!DOCTYPE html>
+    <html lang="es">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>EDUARDOYT666 | Presentación</title>
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
+        <style>
+            body {
+                min-height: 100vh;
+                margin: 0;
+                padding: 0;
+                background: linear-gradient(120deg, #232526 0%, #414345 100%);
+                overflow-x: hidden;
+            }
+            .animated-bg {
+                position: fixed;
+                top: 0; left: 0; width: 100vw; height: 100vh;
+                z-index: 0;
+                pointer-events: none;
+            }
+            .presentation-card {
+                position: relative;
+                z-index: 2;
+                background: rgba(44, 62, 80, 0.92);
+                border-radius: 18px;
+                padding: 2.5rem 2rem;
+                box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+                max-width: 480px;
+                margin: 4rem auto;
+            }
+            .profile-img {
+                width: 120px;
+                height: 120px;
+                object-fit: cover;
+                border-radius: 50%;
+                border: 4px solid #fff;
+                margin-bottom: 1rem;
+                box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+            }
+            .yt-btn {
+                background: #ff0000;
+                color: #fff;
+                border: none;
+                font-size: 1.2rem;
+                padding: 0.75rem 2rem;
+                border-radius: 50px;
+                margin-top: 1.5rem;
+                transition: background 0.2s;
+            }
+            .yt-btn:hover {
+                background: #c20000;
+                color: #fff;
+            }
+            .video-container {
+                margin: 2rem 0 1rem 0;
+            }
+            h1 {
+                font-family: 'Montserrat', sans-serif;
+                font-weight: 700;
+                letter-spacing: 2px;
+                color: #ffffff; /* Añadido para mejor contraste */
+            }
+            .subtitle {
+                font-size: 1.1rem;
+                color: #e0e0e0;
+            }
+        </style>
+    </head>
+    <body>
+        <svg class="animated-bg" viewBox="0 0 1920 1080" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="400" cy="200" r="180" fill="#ff0000" fill-opacity="0.08">
+                <animate attributeName="cx" values="400;1600;400" dur="12s" repeatCount="indefinite"/>
+            </circle>
+            <circle cx="1600" cy="900" r="220" fill="#00ffea" fill-opacity="0.07">
+                <animate attributeName="cy" values="900;200;900" dur="10s" repeatCount="indefinite"/>
+            </circle>
+            <circle cx="960" cy="540" r="320" fill="#fff700" fill-opacity="0.04">
+                <animate attributeName="r" values="320;180;320" dur="14s" repeatCount="indefinite"/>
+            </circle>
+        </svg>
+        <div class="container">
+            <div class="presentation-card text-center">
+                <!-- CAMBIO: Se usa un placeholder para la imagen de perfil -->
+                <img src="https://placehold.co/120x120/ffffff/c20000?text=E" alt="EDUARDOYT666" class="profile-img">
+                <h1>EDUARDOYT666</h1>
+                <div class="subtitle mb-3">¡Bienvenido a la morada digital de <b>EDUARDOYT666</b>! Disfruta el video y conoce su contenido.</div>
+                
+                <!-- CAMBIO: Se usa un placeholder para el video -->
+                <div class="video-container">
+                    <img src="https://placehold.co/440x248/000000/ffffff?text=Video+de+Presentacion" alt="Video de Presentación" style="width:100%;border-radius:12px;box-shadow:0 2px 16px rgba(0,0,0,0.3)">
+                    <p style="color: #ccc; font-size: 0.9rem; margin-top: 10px;">El video se mostrará aquí.</p>
+                </div>
+
+                <a href="https://youtube.com/@eduardoyt666" target="_blank" class="yt-btn">
+                    <i class="bi bi-youtube"></i> Ver canal de YouTube
+                </a>
+            </div>
+        </div>
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+    </body>
+    </html>
+    """)
 
 def run_web_server():
   # Añadimos use_reloader=False para evitar que se inicie dos veces
